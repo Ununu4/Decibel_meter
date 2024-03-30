@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dB Counter</title>
+    <style>
+        /* Paste the provided CSS styles here */
+        body {
+            height: 100vh; 
+            margin: 0;
+            font-family: Arial, sans-serif; /* Change to a more modern font */
+            background-color: #f0f0f0; /* Light background color */
+            display: flex; 
+            flex-direction: column;
+            justify-content: space-evenly;
+        }
+
+        main {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        footer {
+            background-color: #333; /* Darker background color */
+            color: white;
+            height: auto;
+            padding: 20px 0; /* Add padding to the footer */
+            width: 100%;
+            margin-top: auto;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 3em;
+            font-weight: bold; /* Make the heading bold */
+        }
+
+        h2 {
+            font-size: 2.5em; /* Reduce the size of the secondary heading */
+            font-style: italic;
+            text-align: center;
+        }
+
+        #db {
+            font-size: 4em;
+            font-family: Arial, sans-serif; /* Change to a more modern font */
+            color: #333; /* Darker color for the dB value */
+        }
+
+        #visuals {
+            background: #ff5733; /* Orange background for the visuals */
+            height: 5px;
+            margin-top: 20px; /* Add space between the dB value and visuals */
+        }
+
+        .col {
+            text-align: center;
+            width: 100%; /* Make the columns take full width */
+        }
+
+        .col a, footer p {
+            font-family: Arial, sans-serif; /* Change to a more modern font */
+            color: white;
+            text-decoration: none;
+        }
+
+        .col p {
+            user-select: none;
+        }
+
+        .col a:hover {
+            color: #45a049; /* Change the link color on hover */
+        }
+
+        h3 a {
+            font-family: Arial, sans-serif; /* Change to a more modern font */
+            color: black;
+            text-decoration: none;
+        }
+
+        h3 a:hover {
+            color: white;
+            background-color: #333; /* Darker background color on hover */
+        }
+
+        p {
+            color: black;
+            text-align: center;
+            padding-inline: 20%;
+        }
+
+        .inputs {
+            padding: 50px 10px;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: space-evenly;
+        }
+
+        .input {
+            text-align: center;
+        }
+
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: #2a18b6; /* Green */
+            border: none;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            cursor: pointer;
+            transition-duration: 0.4s;
+            border-radius: 12px;
+            outline: none; /* Remove button outline */
+        }
+
+        .button:hover {
+            background-color: #45a049; /* Dark Green */
+        }
+
+        @media screen and (max-width: 500px) {
+            .inputs {
+                flex-direction: column;
+                align-items: center; /* Center align inputs on smaller screens */
+            }
+            .input {
+                width: 80%; /* Reduce input width on smaller screens */
+                margin-bottom: 20px; /* Add spacing between inputs */
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Decibel Meter</h1>
+    </header>
+    <div class="main-inputs">
+        <main>
+            <h2><span id="db">-</span> dB</h2>
+            <div id='visuals'></div>
+        </main>
+        <div class="inputs">
+            <div class="input">
+                <button class="button" id="startButton">Start</button>
+                <button class="button" id="stopButton">Stop</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>    
+    let localDbValues = [];     // Array to store dB values for each loop within the refresh_rate
+        let refresh_rate = 100;     // Decreased refresh rate for faster updates
+        let interval;               // Interval for updating dB readings
+        
+        // Function to start the dB readings
+        function startDbReadings() {
+            // Request microphone access
+            navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            .then((stream) => {
+                const audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(stream);
+                const analyser = audioContext.createAnalyser();
+        
+                analyser.smoothingTimeConstant = 0.8;
+                analyser.fftSize = 256;
+        
+                source.connect(analyser);
+        
+                // Start interval for updating dB readings
+                interval = setInterval(() => {
+                    const data = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(data);
+                    let rms = 0;
+        
+                    for (let i = 0; i < data.length; i++) {
+                        if (data[i] > 120) data[i] = 120; // Cap values to avoid extreme spikes
+                        rms += data[i] * data[i];
+                    }
+                    rms = Math.sqrt(rms / data.length);
+        
+                    // Calculate dB value
+                    let value = rms;
+        
+                    // Add dB value to local array
+                    localDbValues.push(value);
+        
+                    // Display the latest dB value
+                    const db = document.getElementById("db");
+                    db.innerText = Math.round(value);
+        
+                    // Update visualization colors
+                    changeColor(value);
+                }, refresh_rate);
+            })
+            .catch((err) => {
+                console.error('Error accessing microphone', err);
+            });
+        }
+        
+        // Function to stop the dB readings
+        function stopDbReadings() {
+            clearInterval(interval);
+        }
+        
+        // Event listeners for start and stop buttons
+        document.getElementById("startButton").addEventListener("click", startDbReadings);
+        document.getElementById("stopButton").addEventListener("click", stopDbReadings);
+        
+        // Function to change visualization colors according to the dB value
+        function changeColor(decibels) {
+            let color;
+            if (decibels < 50) { color = 'green' }
+            else if (decibels >= 50 && decibels < 70) { color = 'yellow' }
+            else if (decibels >= 70 && decibels < 90) { color = 'orange' }
+            else { color = 'red' }
+        
+            document.getElementById("visuals").style.width = decibels * 2 / 10 + "rem";
+            document.getElementById("visuals").style.background = (decibels >= 70) ? 'red' : 'black';
+            document.getElementById("db").style.color = color;
+        }
+        </script>
+
+</body>
+</html>
